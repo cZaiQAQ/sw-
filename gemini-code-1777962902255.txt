@@ -1,0 +1,81 @@
+' ==========================================================
+' 系统名称：AI 驱动的智能参数化建模系统核心模块
+' 功能：自动初始化环境、根据参数创建 3D 实体、执行特征操作
+' ==========================================================
+
+Dim swApp As Object
+Dim swModel As Object
+Dim swModelDocExt As Object
+Dim swSelMgr As Object
+Dim boolStatus As Boolean
+
+Sub Main()
+    ' 1. 初始化 SOLIDWORKS 接口
+    Set swApp = Application.SldWorks
+    
+    ' 2. 创建新零件文档 (使用默认模板)
+    Dim defaultTemplate As String
+    defaultTemplate = swApp.GetUserPreferenceStringValue(8) ' 8 代表部件模板
+    Set swModel = swApp.NewDocument(defaultTemplate, 0, 0, 0)
+    
+    If swModel Is Nothing Then
+        MsgBox "无法创建新文档，请检查模板设置。"
+        Exit Sub
+    End If
+    
+    Set swModelDocExt = swModel.Extension
+    
+    ' ======================================================
+    ' 系统执行流：模拟从 Agent 获取参数并执行建模
+    ' ======================================================
+    
+    ' 参数定义 (单位：米)
+    Dim BaseDiameter As Double: BaseDiameter = 0.1    ' 100mm
+    Dim PlateThickness As Double: PlateThickness = 0.02 ' 20mm
+    Dim HoleDiameter As Double: HoleDiameter = 0.04   ' 40mm
+    
+    ' 执行步骤 1: 创建基座圆盘
+    Call CreateBaseDisk(BaseDiameter, PlateThickness)
+    
+    ' 执行步骤 2: 在圆盘中心打孔
+    Call CreateCenterHole(HoleDiameter)
+    
+    ' 执行步骤 3: 自动视图缩放
+    swModel.ViewZoomtofit2
+    
+    MsgBox "建模系统任务执行完成！", vbInformation, "系统提示"
+End Sub
+
+' ----------------------------------------------------------
+' 子程序：创建基座圆盘
+' ----------------------------------------------------------
+Sub CreateBaseDisk(ByVal d As Double, ByVal t As Double)
+    ' 选择前视基准面
+    boolStatus = swModelDocExt.SelectByID2("Front Plane", "PLANE", 0, 0, 0, False, 0, Nothing, 0)
+    swModel.SketchManager.InsertSketch True
+    
+    ' 绘制圆 (中心点 0,0,0)
+    swModel.SketchManager.CreateCircle 0, 0, 0, d / 2, 0, 0
+    
+    ' 退出草图并拉伸凸台
+    ' 参数：方向, 深度, 终止条件等
+    swModel.FeatureManager.FeatureExtrusion2 True, False, False, 0, 0, t, t, False, False, False, False, 0, 0, False, False, False, False, True, True, True, 0, 0, False
+    swModel.ClearSelection2 True
+End Sub
+
+' ----------------------------------------------------------
+' 子程序：创建中心孔
+' ----------------------------------------------------------
+Sub CreateCenterHole(ByVal d As Double)
+    ' 选择拉伸出的实体表面
+    ' 坐标点 0,0,t (t已经在之前定义，这里简化为探测表面)
+    boolStatus = swModelDocExt.SelectByID2("", "FACE", 0, 0, 0, False, 0, Nothing, 0)
+    swModel.SketchManager.InsertSketch True
+    
+    ' 绘制内孔圆
+    swModel.SketchManager.CreateCircle 0, 0, 0, d / 2, 0, 0
+    
+    ' 执行拉伸切除 (完全贯穿)
+    swModel.FeatureManager.FeatureCut4 True, False, False, 1, 0, 0.01, 0.01, False, False, False, False, 0, 0, False, False, False, False, False, True, True, True, True, False, 0, 0, False, False
+    swModel.ClearSelection2 True
+End Sub
